@@ -92,8 +92,9 @@ h2 { margin: 0 0 10px; font-size: 1.2rem; }
 .foot { margin-top: 10px; }
 
 /* ---- Security Watch ---- */
-.stage { aspect-ratio: 16/9; }
-.stage canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+.stage { aspect-ratio: auto; display: block; min-height: 120px; }
+.stage canvas { width: 100%; height: auto; display: block; }
+.stage .hint { left: 0; right: 0; top: 50%; transform: translateY(-50%); }
 .banner { margin-top: 12px; font-size: 1.15rem; padding: 12px; }
 .banner.warn { background: var(--warn); }
 .stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: var(--muted); font-size: .9rem; }
@@ -115,3 +116,4 @@ h2.gap { margin-top: 22px; }
 .entry .clip a { display: inline-block; margin-top: 4px; }
 code { background: color-mix(in srgb, var(--line) 50%, transparent); padding: 1px 4px; border-radius: 4px; }
 [hidden] { display: none !important; }
+.stage #out { margin-top: 0; border-radius: 0; }

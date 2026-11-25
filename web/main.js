@@ -209,9 +209,9 @@ function drawOverlay() {
   ctx.fillText(stamp, pad, H - pad * 1.4);
   if (rec && Math.floor(performance.now() / 500) % 2) {
     ctx.fillStyle = "#ff2d2d";
-    ctx.beginPath(); ctx.arc(W - pad * 5, pad * 3, pad, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(W - pad * 8, pad * 3, pad, 0, 7); ctx.fill();
     ctx.font = `bold ${Math.round(W / 36)}px system-ui, sans-serif`;
-    ctx.fillText("REC", W - pad * 3.4, pad * 3 + W / 100);
+    ctx.fillText("REC", W - pad * 6.4, pad * 3 + W / 100);
   }
 }
 

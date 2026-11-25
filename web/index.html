@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security Watch</title>
+  <meta name="description" content="Turn any camera into a shop guard: it spots people after hours and visible weapons, records the clip and pings your phone on Telegram. Written in Python, running in your browser.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🛡️ Security Watch</h1>
+    <p class="lead">Small shops can't watch CCTV all day. Point a camera at the room and this page <b>notices movement</b>,
+      <b>spots people while the shop is closed</b> and <b>knives or bats at any time</b>, <b>records the clip</b> and
+      <b>pings your phone</b> on Telegram.</p>
+    <p class="py">🐍 Written in Python (OpenCV + NumPy), running right here in your browser with Pyodide.</p>
+    <p class="privacy">🔒 <b>Privacy:</b> the video is analysed on this device and is never uploaded. Clips stay in this tab
+      until you download them. The only thing that leaves the device is the Telegram alert you set up yourself, sent straight
+      to your own bot. Tell people when a camera is recording.</p>
+  </header>
+
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>
+      <b id="loadText">Starting Python…</b>
+      <div class="small">First visit downloads about 30 MB (Python, OpenCV and the detector). Later visits are faster.</div>
+    </div>
+  </div>
+
+  <main>
+    <section class="card">
+      <h2>1. Camera</h2>
+      <div class="tabs">
+        <button id="tabSample" class="tab active">🎬 Sample video</button>
+        <button id="tabCam" class="tab">📷 Webcam</button>
+        <button id="tabFile" class="tab">📁 Video file</button>
+      </div>
+      <div class="stage">
+        <canvas id="out" width="640" height="360"></canvas>
+        <div id="hint" class="hint">Press <b>Start watching</b> to play the sample: an empty room after closing time, then people walk in.</div>
+      </div>
+      <input id="file" type="file" accept="video/*" hidden>
+      <div class="row">
+        <button id="startBtn" class="primary" disabled>▶ Start watching</button>
+        <button id="stopBtn" class="secondary" disabled>■ Stop</button>
+      </div>
+      <div id="banner" class="banner idle">Not watching</div>
+      <div class="stats">
+        <span>Movement <b id="sMotion">0%</b></span>
+        <span>People <b id="sPeople">0</b></span>
+        <span>Alarm <b id="sArmed">–</b></span>
+        <span>Python <b id="sMs">–</b></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Alarm rules</h2>
+      <label class="field">Person alarm
+        <select id="armed">
+          <option value="always">Always on</option>
+          <option value="hours">Only when the shop is closed</option>
+          <option value="off">Off (just show people)</option>
+        </select>
+      </label>
+      <div id="hoursRow" class="field hours" hidden>Shop open from <input id="openFrom" type="time" value="08:00">
+        until <input id="openUntil" type="time" value="18:00"></div>
+      <label class="check"><input id="weapons" type="checkbox" checked> Weapon alarm at any time (knife, bat)</label>
+      <label class="check"><input id="record" type="checkbox" checked> Record a clip of each alarm</label>
+      <label class="check"><input id="sound" type="checkbox" checked> Sound a siren on this device</label>
+      <details>
+        <summary>Fine tuning</summary>
+        <label class="field">Detector
+          <select id="detector">
+            <option value="nanodet">NanoDet neural network (more accurate)</option>
+            <option value="hog">Classic HOG people detector (faster, people only)</option>
+          </select>
+        </label>
+        <label class="field">How sure before it counts <input id="minScore" type="range" min="25" max="80" value="45"> <b id="minScoreV">45%</b></label>
+        <label class="field">Movement needed <input id="motion" type="range" min="1" max="30" value="4"> <b id="motionV">0.4%</b></label>
+        <label class="field">Minutes between repeat alerts <input id="cooldown" type="number" min="0" max="60" value="1"></label>
+      </details>
+
+      <h2 class="gap">3. Phone alerts (optional)</h2>
+      <p class="small">Get each alarm on your phone with a free Telegram bot:</p>
+      <ol class="small steps">
+        <li>In Telegram, message <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, send <code>/newbot</code> and copy the token it gives you.</li>
+        <li>Open your new bot and send it any message (for example “hi”).</li>
+        <li>Paste the token below and press <b>Find my chat</b>, then <b>Send test</b>.</li>
+      </ol>
+      <label class="field">Bot token <input id="tgToken" type="password" autocomplete="off" placeholder="123456789:ABC…"></label>
+      <label class="field">Chat ID <input id="tgChat" type="text" autocomplete="off" placeholder="filled in by Find my chat"></label>
+      <div class="row tight">
+        <button id="tgFind" class="secondary">🔎 Find my chat</button>
+        <button id="tgTest" class="secondary">📨 Send test</button>
+        <button id="tgForget" class="secondary">Forget</button>
+      </div>
+      <label class="check"><input id="tgOn" type="checkbox"> Send alarms to Telegram</label>
+      <label class="check"><input id="tgClip" type="checkbox" checked> Also send the recorded clip</label>
+      <p id="tgStatus" class="small"></p>
+      <p class="small">The token is kept only in this browser and is sent only to Telegram.</p>
+    </section>
+  </main>
+
+  <section class="card wide">
+    <div class="head-row">
+      <h2>4. Alarm log and clips</h2>
+      <button id="clearLog" class="secondary">Clear</button>
+    </div>
+    <p id="logEmpty" class="small">No alarms yet.</p>
+    <div id="log" class="log"></div>
+  </section>
+
+  <section class="card wide how">
+    <h2>How it works</h2>
+    <ol>
+      <li><b>Background subtraction:</b> OpenCV's MOG2 learns what the empty room looks like and marks anything that moves
+        (grey boxes). Shadows are ignored.</li>
+      <li><b>Person and weapon detection:</b> when something moves, a NanoDet network (trained on the 80 everyday COCO objects)
+        looks for people, knives and bats. You can switch to OpenCV's classic HOG people detector, which is faster.</li>
+      <li><b>Alarm rules:</b> a person while the alarm is on (always, or only outside opening hours), or a weapon at any time,
+        raises an alarm. Repeats of the same alarm wait a minute.</li>
+      <li><b>Video saving:</b> each alarm records the annotated video until the room has been quiet for 6 seconds.</li>
+      <li><b>Telegram alert:</b> a snapshot, and then the clip, are sent to your phone through your own Telegram bot.</li>
+    </ol>
+    <p class="small">The detection is Python (<code>watch.py</code>) running in your browser through
+      <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>, in a background thread so the video stays smooth.
+      Guns are not in the COCO objects, so this demo cannot reliably spot them; see the README.
+      <a href="https://github.com/Knarf24/security-watch" target="_blank" rel="noopener">See the code on GitHub</a>.
+      Sample video: Intel IoT DevKit sample videos (CC BY 4.0).</p>
+  </section>
+
+  <video id="video" playsinline muted hidden></video>
+  <script src="main.js"></script>
+</body>
+</html>

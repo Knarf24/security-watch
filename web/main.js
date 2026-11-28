@@ -23,6 +23,10 @@ const store = {
 };
 
 // ---- Python worker ---------------------------------------------------------------
+// Python starts in a background thread while the page is already usable. Pressing Start before it is
+// ready opens the video right away and the watching begins as soon as Python is ready.
+let markReady;
+const pyReady = new Promise((r) => { markReady = r; });
 function startWorker() {
   worker = new Worker("worker.js");
   worker.onmessage = (e) => {
@@ -31,12 +35,18 @@ function startWorker() {
     else if (m.type === "ready") {
       ready = true;
       $("loading").classList.add("done");
+      document.documentElement.dataset.py = "ready";
       sendSettings();
-      $("startBtn").disabled = false;
+      if (!watching) $("startBtn").disabled = false;
+      markReady(true);
+      // Keeps Python saved on this device so the next visit starts without downloading it (see sw.js).
+      if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("sw.js").catch(() => {});
     } else if (m.type === "error") {
       $("loading").classList.add("error");
       $("loadText").textContent = "Sorry, Python could not start in this browser. Try Chrome, Edge or Firefox. (" + m.text + ")";
       document.querySelector(".spinner").style.display = "none";
+      $("startBtn").disabled = true;
+      markReady(false);
     } else if (m.type === "result") {
       busy = false;
       if (m.error) { console.error(m.error); return; }
@@ -119,16 +129,25 @@ async function openSource() {
   if (!video.videoWidth) await new Promise((r) => video.addEventListener("loadedmetadata", r, { once: true }));
 }
 
+let starting = false;
 async function startWatching() {
-  if (!ready || watching) return;
+  if (watching || starting) return;
+  starting = true;
   $("startBtn").disabled = true;
   try {
     await openSource();
   } catch (e) {
     showHint(source === "cam" ? "Couldn't open the camera. Allow camera access, or use the sample video." : esc(e.message));
     $("startBtn").disabled = false;
+    starting = false;
     return;
   }
+  if (!ready) {
+    setBanner("idle", "Starting Python…");
+    const ok = await pyReady;
+    if (!ok) { starting = false; return; }
+  }
+  starting = false;
   const s = Math.min(1, MAX_W / video.videoWidth);
   out.width = grab.width = Math.round(video.videoWidth * s);
   out.height = grab.height = Math.round(video.videoHeight * s);
@@ -393,3 +412,4 @@ const t = store.get(TG_KEY);
 if (t) { $("tgToken").value = t.token || ""; $("tgChat").value = t.chat || ""; $("tgOn").checked = !!t.on; $("tgClip").checked = t.clip !== false; }
 sendSettings();
 startWorker();
+document.documentElement.dataset.ui = "ready";

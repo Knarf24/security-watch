@@ -1,22 +1,24 @@
 // Runs the Python code (watch.py) in a background thread, so the video stays smooth
 // while OpenCV looks at each frame.
-importScripts("pyodide/pyodide.js");
+importScripts("pyodide/pyodide.js", "pyfast.js");
 
 let W = null;
 
 async function init() {
   const base = new URL("./", self.location.href).href;
-  self.postMessage({ type: "loading", text: "Starting Python…" });
-  const py = await loadPyodide({ indexURL: base + "pyodide/" });
+  // The code and the detector download while Python starts.
+  const files = Promise.all(["watch.py", "models/object_detection_nanodet_2022nov.onnx"].map(async (f) => {
+    const r = await fetch(base + f);
+    if (!r.ok) throw new Error("Could not load " + f);
+    return [f, new Uint8Array(await r.arrayBuffer())];
+  }));
+  files.catch(() => {}); // reported below
+  const py = await loadPyodideFast({ indexURL: base + "pyodide/" });
   self.postMessage({ type: "loading", text: "Loading OpenCV and NumPy…" });
   await py.loadPackage(["numpy", "opencv-python"]);
   self.postMessage({ type: "loading", text: "Loading the person detector…" });
   py.FS.mkdirTree("/home/pyodide/models");
-  for (const f of ["watch.py", "models/object_detection_nanodet_2022nov.onnx"]) {
-    const r = await fetch(base + f);
-    if (!r.ok) throw new Error("Could not load " + f);
-    py.FS.writeFile("/home/pyodide/" + f, new Uint8Array(await r.arrayBuffer()));
-  }
+  for (const [f, bytes] of await files) py.FS.writeFile("/home/pyodide/" + f, bytes);
   py.runPython("import watch\nW = watch.Watch()\nW._detector()");
   W = py.globals.get("W");
 }
